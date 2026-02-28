@@ -2,20 +2,36 @@ import os
 import logging
 from typing import List, Dict, Any
 
-import numpy as np
-import streamlit as st
+# guard against import errors so the app shows a message instead of a white
+# page. Streamlit Cloud hides import failures in its build logs, so we want to
+# catch them early and display them in the UI.
+import_streamlit_error = None
+try:
+    import numpy as np
+    import streamlit as st
 
-from config import config
-from ingest import ingest_pdfs
-from embed import chunk_pages, embed_texts, get_embedding_model
-from vector_store import get_vector_store
-from retrieve import retrieve_relevant_chunks
-from generate import generate_answer
+    from config import config
+    from ingest import ingest_pdfs
+    from embed import chunk_pages, embed_texts, get_embedding_model
+    from vector_store import get_vector_store
+    from retrieve import retrieve_relevant_chunks
+    from generate import generate_answer
+except Exception as e:  # pylint: disable=broad-except
+    import_streamlit_error = e
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Local RAG PDF QA", layout="wide")
+
+# if imports failed, surface the exception and abort
+if import_streamlit_error is not None:
+    try:
+        st.error("Failed to start app due to import error:")
+        st.exception(import_streamlit_error)
+    except Exception:
+        print("Import error while starting app:", import_streamlit_error)
+    raise SystemExit(import_streamlit_error)
 
 st.title("📚 Local-First RAG over PDFs")
 

@@ -6,3 +6,4 @@ PyMuPDF
 openai>=1.0.0
 streamlit
 numpy
+google-generativeai

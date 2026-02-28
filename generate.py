@@ -2,7 +2,15 @@ import logging
 from typing import List, Dict, Any
 
 from config import config
-import google.generativeai as genai
+
+# try to import the Google Gemini client; the package may not be available on
+# all platforms (Streamlit Cloud previously failed with this error). we handle
+# that gracefully so the app startup will show a clear message.
+try:
+    import google.generativeai as genai
+except ImportError as exc:
+    genai = None  # type: ignore
+    _genai_import_error = exc
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +35,11 @@ def build_prompt(chunks: List[Dict[str, Any]], question: str) -> str:
 def generate_answer(chunks: List[Dict[str, Any]], question: str) -> str:
     if not config.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
+
+    if genai is None:
+        raise RuntimeError(
+            "google-generativeai package is missing; please add it to requirements."
+        )
 
     genai.configure(api_key=config.gemini_api_key)
     model = genai.GenerativeModel(config.gemini_model)
