@@ -1,22 +1,33 @@
 import os
 from dataclasses import dataclass
 
-def _load_api_key(key_name: str = "keys.txt"):
-    """Load API key from environment variable or keys.txt file"""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if api_key:
-        return api_key
+def _load_api_keys():
+    """Load API keys from environment variables or keys.txt file.
     
-    # Try to load from keys.txt
-    try:
-        with open(key_name, "r") as f:
-            api_key = f.read().strip()
-            if api_key:
-                return api_key
-    except FileNotFoundError:
-        pass
+    Returns a dict with 'gemini' and 'openai' keys.
+    """
+    keys = {"gemini": "", "openai": ""}
     
-    return ""
+    # Try environment variables first
+    keys["gemini"] = os.getenv("GEMINI_API_KEY", "").strip()
+    keys["openai"] = os.getenv("OPENAI_API_KEY", "").strip()
+    
+    # If not in env, try to load from keys.txt
+    if not keys["gemini"] or not keys["openai"]:
+        try:
+            with open("keys.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("GEMINI_API_KEY="):
+                        keys["gemini"] = line.split("=", 1)[1].strip()
+                    elif line.startswith("OPENAI_API_KEY="):
+                        keys["openai"] = line.split("=", 1)[1].strip()
+        except FileNotFoundError:
+            pass
+    
+    return keys
+
+_loaded_keys = _load_api_keys()
 
 @dataclass
 class RAGConfig:
@@ -37,7 +48,14 @@ class RAGConfig:
     top_k: int = 5
 
     # Gemini
-    gemini_api_key: str = _load_api_key()
+    gemini_api_key: str = _loaded_keys["gemini"]
     gemini_model: str = "gemini-2.5-flash"
+
+    # OpenAI
+    openai_api_key: str = _loaded_keys["openai"]
+    openai_model: str = "gpt-4o-mini"
+
+    # Provider selection ("gemini" or "openai")
+    provider: str = "gemini"
 
 config = RAGConfig()

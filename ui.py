@@ -37,6 +37,33 @@ st.title("📚 Local-First RAG over PDFs")
 
 with st.sidebar:
     st.header("Settings")
+
+    # provider selection
+    st.subheader("AI Model Provider")
+    provider = st.radio(
+        "Select LLM provider:",
+        options=["gemini", "openai"],
+        format_func=lambda x: "Google Gemini" if x == "gemini" else "OpenAI",
+        horizontal=True,
+    )
+    config.provider = provider
+
+    # show API key status for both providers
+    st.markdown("---")
+    st.subheader("API Keys Status")
+    
+    gemini_status = "✅ Set" if config.gemini_api_key else "❌ Not set"
+    openai_status = "✅ Set" if config.openai_api_key else "❌ Not set"
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Gemini**: {gemini_status}")
+    with col2:
+        st.write(f"**OpenAI**: {openai_status}")
+
+    st.markdown("---")
+    st.subheader("Chunking Settings")
+    
     chunk_size = st.number_input(
         "Chunk size (tokens)", min_value=200, max_value=1200,
         value=config.chunk_size_tokens, step=50,
@@ -53,10 +80,6 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Index Directory:**")
     st.code(os.path.abspath(config.index_dir))
-
-    st.markdown("---")
-    st.markdown("Environment:")
-    st.write("GEMINI_API_KEY set:", bool(config.gemini_api_key))
 
 uploaded_files = st.file_uploader(
     "Upload PDF documents",
@@ -175,7 +198,11 @@ if ask_button:
             # build prompt separately so we can display it in the UI
             from generate import build_prompt
             prompt = build_prompt(chunks, question)
-            answer = generate_answer(chunks, question)
+            try:
+                answer = generate_answer(chunks, question, provider=provider)
+            except RuntimeError as e:
+                st.error(f"Error generating answer: {e}")
+                st.stop()
 
             st.markdown("### Answer")
             st.write(answer)

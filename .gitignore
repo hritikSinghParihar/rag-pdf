@@ -25,3 +25,7 @@ keys.txt
 
 # VS Code settings
 .vscode/
+
+# Runtime-generated data
+data/
+index/
