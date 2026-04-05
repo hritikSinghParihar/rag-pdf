@@ -2,7 +2,8 @@
 
 ## Features
 - Local PDF ingestion (PyMuPDF)
-- Local chunking + embeddings (sentence-transformers)
+- Structure-aware Markdown chunking (langchain-text-splitters)
+- Local embeddings (sentence-transformers)
 - Local FAISS vector store
 - Only top-k chunks + question go to OpenAI
 - Streamlit UI + CLI
@@ -16,7 +17,7 @@ sending a small, relevant slice of text to an external language model for
 answering questions. The typical workflow is:
 
 1. **Upload/ingest** one or more PDF files via the Streamlit web UI.
-2. **Chunk** each page into token-bounded pieces and compute embeddings using
+2. **Chunk** each page using a structure-aware Markdown text splitter (to preserve tables and logical sections) and compute embeddings using
 	a SentenceTransformer model (`all-MiniLM-L6-v2` by default).
 3. **Persist** the vectors in a FAISS index along with simple metadata
 	(source filename, page number, chunk id, and the chunk text itself). The
