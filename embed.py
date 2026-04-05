@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Tuple
 
 from transformers import AutoTokenizer
 from sentence_transformers import SentenceTransformer
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from config import config
 
@@ -24,26 +25,6 @@ def get_embedding_model() -> SentenceTransformer:
         _model = SentenceTransformer(config.embedding_model_name)
     return _model
 
-def chunk_text(
-    text: str,
-    chunk_size_tokens: int,
-    chunk_overlap_tokens: int,
-) -> List[str]:
-    tokenizer = get_tokenizer()
-    tokens = tokenizer.encode(text, add_special_tokens=False)
-    chunks = []
-    start = 0
-    n = len(tokens)
-    while start < n:
-        end = min(start + chunk_size_tokens, n)
-        chunk_tokens = tokens[start:end]
-        chunk_text = tokenizer.decode(chunk_tokens)
-        chunks.append(chunk_text)
-        if end == n:
-            break
-        start = max(0, end - chunk_overlap_tokens)
-    return chunks
-
 def chunk_pages(
     pages: List[Dict[str, Any]],
     chunk_size_tokens: int | None = None,
@@ -54,6 +35,27 @@ def chunk_pages(
     if chunk_overlap_tokens is None:
         chunk_overlap_tokens = config.chunk_overlap_tokens
 
+    # Set up splitters
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+        ("####", "Header 4")
+    ]
+    markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on, strip_headers=False)
+    
+    tokenizer = get_tokenizer()
+    def token_len(text: str) -> int:
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        return len(tokens)
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size_tokens,
+        chunk_overlap=chunk_overlap_tokens,
+        length_function=token_len,
+        separators=["\n\n", "\n", " ", ""]
+    )
+
     chunks = []
     for page in pages:
         page_text = page["text"]
@@ -61,13 +63,23 @@ def chunk_pages(
             "source": page.get("source"),
             "page": page.get("page"),
         }
-        page_chunks = chunk_text(page_text, chunk_size_tokens, chunk_overlap_tokens)
-        for i, ch in enumerate(page_chunks):
+        
+        # 1. Split by Markdown headers (keeps headings intact)
+        md_docs = markdown_splitter.split_text(page_text)
+        
+        # 2. Split larger sections while preserving layout (tables will generally stay intact if they fit in the chunk)
+        split_docs = text_splitter.split_documents(md_docs)
+        
+        for i, split_doc in enumerate(split_docs):
             meta = base_meta.copy()
+            # Add header metadata found by MarkdownHeaderTextSplitter
+            for key, val in split_doc.metadata.items():
+                meta[key] = val
+                
             meta["chunk_id"] = f"{meta['source']}_p{meta['page']}_c{i}"
             chunks.append(
                 {
-                    "text": ch,
+                    "text": split_doc.page_content,
                     "metadata": meta,
                 }
             )
