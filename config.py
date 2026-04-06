@@ -45,7 +45,7 @@ class RAGConfig:
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Retrieval
-    top_k: int = 5
+    top_k: int = 10
 
     # Gemini
     gemini_api_key: str = _loaded_keys["gemini"]
@@ -56,6 +56,6 @@ class RAGConfig:
     openai_model: str = "gpt-4o-mini"
 
     # Provider selection ("gemini" or "openai")
-    provider: str = "gemini"
+    provider: str = "openai"
 
 config = RAGConfig()

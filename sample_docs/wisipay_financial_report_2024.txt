@@ -1,0 +1,162 @@
+================================================================
+WISIPAY FINANCIAL SERVICES PVT. LTD.
+ANNUAL FINANCIAL REPORT — FISCAL YEAR 2024
+================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+WisiPay Financial Services Pvt. Ltd. recorded its strongest fiscal year in company history
+during FY2024. Total revenue crossed INR 480 crore, representing a 67% year-over-year growth.
+Net profit after tax (PAT) stood at INR 54.2 crore, with an EBITDA margin of 18.4%.
+The merchant base expanded from 12,400 to 31,700 active merchants across 22 Indian states.
+
+================================================================
+SECTION 1: REVENUE BREAKDOWN
+================================================================
+
+1.1 Revenue by Business Segment (INR Crore)
+--------------------------------------------
+  Payment Gateway (PG) Fees           : 210.4
+  Settlement & Float Income           :  88.3
+  Payout Service Fees                 :  72.1
+  Recurring Mandates (NACH/UPI)       :  54.6
+  White-Label Solutions               :  31.2
+  International Remittance            :  23.4
+  TOTAL OPERATING REVENUE             : 480.0
+
+1.2 Revenue by Quarter
+-----------------------
+  Q1 (Apr–Jun 2024)  : INR  92.4 Cr   (Growth: +41% YoY)
+  Q2 (Jul–Sep 2024)  : INR 110.2 Cr   (Growth: +58% YoY)
+  Q3 (Oct–Dec 2024)  : INR 129.6 Cr   (Growth: +72% YoY)
+  Q4 (Jan–Mar 2025)  : INR 147.8 Cr   (Growth: +89% YoY)
+
+1.3 Revenue by Geography
+-------------------------
+  Maharashtra        : 28.4%
+  Karnataka          : 18.7%
+  Delhi NCR          : 16.3%
+  Tamil Nadu         : 11.2%
+  Gujarat            : 8.6%
+  Rest of India      : 16.8%
+
+================================================================
+SECTION 2: EXPENSE ANALYSIS
+================================================================
+
+2.1 Operating Expenses (INR Crore)
+------------------------------------
+  Payment Network Charges (MDR)       : 112.6
+  Cloud Infrastructure & Hosting      :  44.8
+  Employee Salaries & Benefits        :  82.3
+  Regulatory & Compliance Costs       :  18.1
+  Marketing & Merchant Acquisition    :  31.7
+  Technology R&D                      :  27.4
+  General & Administrative            :  19.6
+  Depreciation & Amortisation         :  10.3
+  TOTAL OPERATING EXPENSES            : 346.8
+
+2.2 Headcount Summary
+----------------------
+  Engineering & Product               : 312
+  Sales & Merchant Success            : 208
+  Finance & Risk                      :  94
+  Operations & Support                : 176
+  Legal & Compliance                  :  42
+  HR & Admin                          :  38
+  TOTAL HEADCOUNT (Mar 2025)          : 870
+
+================================================================
+SECTION 3: KEY PERFORMANCE INDICATORS
+================================================================
+
+  Total Payment Volume (TPV)          : INR 1,24,000 Crore
+  Total Transactions Processed        : 8.4 Billion
+  Average Transaction Value (ATV)     : INR 1,476
+  Payment Success Rate                : 98.61%
+  Chargeback Rate                     : 0.04%
+  System Uptime (SLA)                 : 99.97%
+  Merchant Net Promoter Score (NPS)   : 71
+  Average Settlement Time (T+)        : T+1 (94% merchants)
+
+================================================================
+SECTION 4: PRODUCT UPDATES — FY2024
+================================================================
+
+4.1 Payment Gateway
+--------------------
+  - Launched Smart Routing Engine v3.0 with ML-based least-cost routing.
+  - Added support for 14 new payment methods including CBDC pilot wallets.
+  - Reduced API response latency from 420ms to 180ms (p95).
+  - PCI-DSS Level 1 certification renewed in September 2024.
+
+4.2 Payouts Platform
+---------------------
+  - Real-time IMPS/UPI payout throughput increased to 2,400 TPS.
+  - Bulk payout file processing now supports CSV, XLSX and API batch modes.
+  - Introduced atomic TPS-limit enforcement using Redis Lua scripts to prevent
+    double-spend under high concurrency.
+  - Launched vendor payment portal with CFO dashboard and approval workflows.
+
+4.3 Recurring Payments
+------------------------
+  - NACH mandate success rate improved to 93.7% through intelligent retry logic.
+  - UPI AutoPay (UPI 2.0) mandates onboarded 1.2M end-users by March 2025.
+  - Introduced smart debit scheduling to avoid low-balance failures.
+
+4.4 Compliance & Risk
+----------------------
+  - RBI Payment Aggregator (PA) license application submitted — status: pending.
+  - Implemented AML transaction monitoring with real-time rule engine.
+  - Launched biometric merchant KYC (DigiLocker + Aadhaar OTP) reducing
+    onboarding time from 72 hours to 4 hours.
+  - Fraud loss rate maintained at 0.003% of TPV.
+
+================================================================
+SECTION 5: RISK FACTORS
+================================================================
+
+  5.1 Regulatory Risk
+  --------------------
+  The RBI's Payment Aggregator guidelines require WisiPay to obtain PA licensing
+  by December 2025. Non-compliance would restrict onboarding of new merchants.
+  We have engaged external legal counsel and submitted all required documents.
+
+  5.2 Credit Risk
+  ----------------
+  INR 22.4 crore of settlement funds are held in nodal accounts. Returns and
+  chargebacks are backstopped by merchant deposits averaging 3 days' float.
+
+  5.3 Cybersecurity Risk
+  -----------------------
+  Two attempted DDoS events were mitigated in Q3 with zero service downtime.
+  We maintain a bug bounty programme and conduct quarterly penetration tests.
+
+  5.4 Concentration Risk
+  -----------------------
+  Top 10 merchants contribute 18.3% of TPV. Loss of any single top merchant
+  would reduce quarterly revenue by an estimated INR 8–12 crore.
+
+================================================================
+SECTION 6: OUTLOOK FY2025
+================================================================
+
+  Revenue Target               : INR 780 Crore (+62.5% growth)
+  TPV Target                   : INR 2,10,000 Crore
+  Active Merchant Target        : 60,000
+  New Products Planned          :
+    - Cross-border payments (UAE, Singapore launch — Q2 FY25)
+    - Embedded Finance APIs (BNPL, merchant credit lines)
+    - Tokenised card vault for enterprise e-commerce
+    - Offline QR + soundbox device for Tier-3 cities
+
+================================================================
+AUDITOR'S NOTE
+================================================================
+This report has been prepared in accordance with Indian GAAP and reviewed
+by M/s Deloitte Haskins & Sells LLP. All figures are unaudited and subject
+to final statutory audit. Variance of ±2% may apply.
+
+Director of Finance: Ranjit Mehra, CFA
+CFO Signature Date : 15 April 2025
+================================================================

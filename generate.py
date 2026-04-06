@@ -26,14 +26,21 @@ def build_prompt(chunks: List[Dict[str, Any]], question: str) -> str:
         text = c.get("text")
         meta_str = f"[Source: {source}, Page: {page}]"
         context_blocks.append(f"{meta_str}\n{text}")
+    
     context = "\n\n---\n\n".join(context_blocks) if context_blocks else "No context."
-    # strict instruction to confine answers to the provided context.  the model
-    # will respond "I don't know" if the information isn't present verbatim.
+    
+    # Analysis-friendly instruction: maintains strict context but allows logical synthesis
     instruction = (
-        "You are a helpful assistant. Answer ONLY using the provided context.\n"
-        "If the answer is not in the context, say you don't know."
+        "You are a helpful and analytical assistant. Your task is to answer the user's question "
+        "using ONLY the provided context.\n"
+        "1. If the information is spread across multiple chunks, synthesize it to form a complete answer.\n"
+        "2. If the question requires a comparison or logical deduction (e.g., 'Is A more than B?'), "
+        "perform that analysis explicitly using the facts in the context.\n"
+        "3. cite the specific source and page for each fact you use.\n"
+        "4. If and only if the context completely lacks the required information, say you don't know."
     )
-    prompt = f"{instruction}\n\nContext:\n{context}\n\nQuestion: {question}\nAnswer:"
+    
+    prompt = f"{instruction}\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnalysis and Answer:"
     return prompt
 
 def generate_answer(chunks: List[Dict[str, Any]], question: str, provider: str | None = None) -> str:

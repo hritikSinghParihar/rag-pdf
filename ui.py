@@ -11,7 +11,7 @@ try:
     import streamlit as st
 
     from config import config
-    from ingest import ingest_pdfs
+    from ingest import ingest_files
     from embed import chunk_pages, embed_texts, get_embedding_model
     from vector_store import get_vector_store
     from retrieve import retrieve_relevant_chunks
@@ -33,7 +33,7 @@ if import_streamlit_error is not None:
         print("Import error while starting app:", import_streamlit_error)
     raise SystemExit(import_streamlit_error)
 
-st.title("📚 Local-First RAG over PDFs")
+st.title("📚 Local-First RAG — PDF, TXT, HTML & DOCX")
 
 with st.sidebar:
     st.header("Settings")
@@ -74,7 +74,8 @@ with st.sidebar:
     )
     top_k = st.number_input(
         "Top-k retrieval", min_value=1, max_value=20,
-        value=config.top_k, step=1,
+        # Increased to 10 for better reasoning support
+        value=10, step=1,
     )
 
     st.markdown("---")
@@ -82,8 +83,8 @@ with st.sidebar:
     st.code(os.path.abspath(config.index_dir))
 
 uploaded_files = st.file_uploader(
-    "Upload PDF documents",
-    type=["pdf"],
+    "Upload documents (PDF, TXT, HTML, DOCX)",
+    type=["pdf", "txt", "html", "htm", "docx"],
     accept_multiple_files=True,
 )
 
@@ -106,7 +107,7 @@ status_placeholder = st.empty()
 
 if index_button:
     if not uploaded_files:
-        st.error("Please upload at least one PDF.")
+        st.error("Please upload at least one document.")
     else:
         with st.spinner("Indexing documents... This may take a while."):
             os.makedirs(config.data_dir, exist_ok=True)
@@ -117,7 +118,7 @@ if index_button:
                     f.write(uf.read())
                 saved_paths.append(save_path)
 
-            pages = ingest_pdfs(saved_paths)
+            pages = ingest_files(saved_paths)
             chunks = chunk_pages(
                 pages,
                 chunk_size_tokens=int(chunk_size),
@@ -176,7 +177,8 @@ st.markdown("---")
 
 st.subheader("Ask a question")
 
-question = st.text_input("Your question about the indexed PDFs")
+question = st.text_input("Your question about the indexed documents")
+st.info("💡 **Tip:** For complex questions involving comparisons or multi-step reasoning, ensure 'Top-k retrieval' in the sidebar is set to 10 or higher.")
 ask_button = st.button("❓ Ask")
 
 if st.session_state.get("indexed"):
