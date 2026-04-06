@@ -1,26 +1,24 @@
 import os
 import logging
 from typing import List, Dict, Any
-import fitz  # PyMuPDF
+import pymupdf4llm
 
 from config import config
 
 logger = logging.getLogger(__name__)
 
 def extract_text_from_pdf(path: str) -> List[Dict[str, Any]]:
-    """Extract text per page with metadata."""
-    doc = fitz.open(path)
+    """Extract text per page as Markdown with metadata."""
+    md_pages = pymupdf4llm.to_markdown(path, page_chunks=True)
     pages = []
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        text = page.get_text("text")
+    # pymupdf4llm.to_markdown(page_chunks=True) returns a list of dictionaries.
+    for i, page_data in enumerate(md_pages):
         pages.append(
             {
-                "text": text,
-                "page": page_num + 1,
+                "text": page_data["text"],
+                "page": i + 1,
             }
         )
-    doc.close()
     return pages
 
 def ingest_pdfs(pdf_paths: List[str]) -> List[Dict[str, Any]]:
