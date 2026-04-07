@@ -88,12 +88,32 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True,
 )
 
+# PERSISTENCE LOGIC (Auto-load existing index on startup)
+def auto_reload_index():
+    if not st.session_state.get("indexed") and os.path.exists(config.index_dir):
+        try:
+            model = get_embedding_model()
+            dim = model.get_sentence_embedding_dimension()
+            store = get_vector_store(dim)
+            if store.index is not None and store.index.ntotal > 0:
+                st.session_state["indexed"] = True
+                st.session_state["num_docs"] = len({m.get("source") for m in store.metadata}) if store.metadata else 0
+                st.session_state["num_chunks"] = len(store.metadata)
+                return True
+        except Exception as exc:
+            logger.error("Failed to auto-load index: %s", exc)
+    return False
+
 if "indexed" not in st.session_state:
     st.session_state["indexed"] = False
 if "num_docs" not in st.session_state:
     st.session_state["num_docs"] = 0
 if "num_chunks" not in st.session_state:
     st.session_state["num_chunks"] = 0
+
+# Attempt auto-reload once per session
+if not st.session_state["indexed"]:
+    auto_reload_index()
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -104,6 +124,10 @@ with col3:
     clear_button = st.button("🧹 Clear Index (local files)")
 
 status_placeholder = st.empty()
+if st.session_state["indexed"] and not any([index_button, reload_button, clear_button]):
+    status_placeholder.info(
+        f"✅ Auto-loaded existing index: {st.session_state['num_docs']} docs | {st.session_state['num_chunks']} chunks."
+    )
 
 if index_button:
     if not uploaded_files:
