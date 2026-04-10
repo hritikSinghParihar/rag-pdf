@@ -51,6 +51,11 @@ class FAISSVectorStore:
     def add(self, embeddings: np.ndarray, metadatas: List[Dict[str, Any]]):
         if self.index is None:
             self.create_new()
+        
+        # Ensure embeddings are 2D (n, dim)
+        if len(embeddings.shape) == 1:
+            embeddings = embeddings.reshape(1, -1)
+            
         self.index.add(embeddings.astype("float32"))
         self.metadata.extend(metadatas)
 

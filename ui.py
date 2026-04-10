@@ -83,8 +83,8 @@ with st.sidebar:
     st.code(os.path.abspath(config.index_dir))
 
 uploaded_files = st.file_uploader(
-    "Upload documents (PDF, TXT, HTML, DOCX)",
-    type=["pdf", "txt", "html", "htm", "docx"],
+    "Upload documents (PDF, TXT, HTML, DOCX, Images)",
+    type=["pdf", "txt", "html", "htm", "docx", "png", "jpg", "jpeg"],
     accept_multiple_files=True,
 )
 
