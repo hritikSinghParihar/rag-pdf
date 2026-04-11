@@ -69,3 +69,17 @@ def preprocess_image(image_path: str) -> str:
     except Exception as e:
         logger.error(f"Error preprocessing image: {e}")
         return image_path
+
+def get_all_supported_files(directory: str) -> List[str]:
+    """Recursively find all supported files (PDF, TXT, HTML, DOCX, Images) in a directory."""
+    supported_extensions = ('.pdf', '.txt', '.html', '.htm', '.docx', '.png', '.jpg', '.jpeg')
+    file_paths = []
+    if not os.path.exists(directory):
+        logger.warning(f"Directory not found: {directory}")
+        return []
+        
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.lower().endswith(supported_extensions):
+                file_paths.append(os.path.join(root, file))
+    return file_paths

@@ -15,6 +15,7 @@ try:
     from embed import chunk_pages, embed_texts, get_embedding_model
     from vector_store import get_vector_store
     from retrieve import retrieve_relevant_chunks
+    from utils import get_all_supported_files
     from generate import generate_answer
 except Exception as e:  # pylint: disable=broad-except
     import_streamlit_error = e
@@ -123,6 +124,8 @@ with col2:
 with col3:
     clear_button = st.button("🧹 Clear Index (local files)")
 
+sync_button = st.sidebar.button("🔄 Sync Scraped Docs")
+
 status_placeholder = st.empty()
 if st.session_state["indexed"] and not any([index_button, reload_button, clear_button]):
     status_placeholder.info(
@@ -186,16 +189,57 @@ if reload_button:
             f"Loaded index with {st.session_state['num_docs']} docs and {st.session_state['num_chunks']} chunks."
         )
 
-if clear_button:
-    if os.path.exists(config.index_dir):
-        for f in os.listdir(config.index_dir):
-            os.remove(os.path.join(config.index_dir, f))
-        status_placeholder.warning("Cleared local index files.")
-        st.session_state["indexed"] = False
-        st.session_state["num_docs"] = 0
-        st.session_state["num_chunks"] = 0
-    else:
         st.info("No index directory found.")
+
+if sync_button:
+    with st.spinner("Syncing documents from Scraper directory..."):
+        scrapper_files = get_all_supported_files(config.scrapper_dir)
+        if not scrapper_files:
+            st.warning(f"No documents found in {config.scrapper_dir}")
+        else:
+            # Load existing store to check for duplicates
+            model = get_embedding_model()
+            dim = model.get_sentence_embedding_dimension()
+            store = get_vector_store(dim)
+            
+            # Identify which files are already indexed
+            indexed_sources = {m.get("source") for m in store.metadata} if store.metadata else set()
+            new_files = [f for f in scrapper_files if f not in indexed_sources]
+            
+            if not new_files:
+                st.info("Already up to date. No new documents found.")
+            else:
+                pages = ingest_files(new_files)
+                chunks = chunk_pages(
+                    pages,
+                    chunk_size_tokens=int(chunk_size),
+                    chunk_overlap_tokens=int(chunk_overlap),
+                )
+
+                if chunks:
+                    texts = [c["text"] for c in chunks]
+                    metadatas = [c["metadata"] for c in chunks]
+                    for meta, text in zip(metadatas, texts):
+                        meta["text"] = text
+
+                    embeddings = embed_texts(texts)
+                    embeddings = np.array(embeddings)
+                    
+                    if store.index is None:
+                        store.create_new()
+                    
+                    store.add(embeddings, metadatas)
+                    store.save()
+
+                    st.session_state["indexed"] = True
+                    st.session_state["num_docs"] = len({m.get("source") for m in store.metadata})
+                    st.session_state["num_chunks"] = len(store.metadata)
+
+                    status_placeholder.success(
+                        f"Synced {len(new_files)} new documents. Total chunks: {st.session_state['num_chunks']}"
+                    )
+                else:
+                    st.warning("No text extracted from new documents.")
 
 st.markdown("---")
 

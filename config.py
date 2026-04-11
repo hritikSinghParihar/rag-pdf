@@ -36,6 +36,7 @@ class RAGConfig:
     index_dir: str = "index"
     index_file: str = "faiss_index.bin"
     metadata_file: str = "metadata.json"
+    scrapper_dir: str = os.path.expanduser("~/Desktop/wisipay/rbi-scrapper/downloads")
 
     # Chunking
     chunk_size_tokens: int = 600
