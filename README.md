@@ -1,107 +1,104 @@
-# Local-First RAG over PDFs (Python + Streamlit)
+# RAG PDF - Production-Grade Retrieval-Augmented Generation
 
-## Features
-- Local PDF ingestion (PyMuPDF)
-- Structure-aware Markdown chunking (langchain-text-splitters)
-- Local embeddings (sentence-transformers)
-- Local FAISS vector store
-- Only top-k chunks + question go to OpenAI
-- Streamlit UI + CLI
+A scalable, containerized RAG system for processing and querying over documents using FastAPI, Qdrant, Cloudflare R2, and Celery.
 
-## Overview
+## 🚀 Architecture
 
-This repository is a *local-first* retrieval-augmented generation (RAG)
-prototype specifically tailored for PDF documents. The idea is to keep the
-heavy lifting (parsing, indexing, embedding) on the user’s machine, only
-sending a small, relevant slice of text to an external language model for
-answering questions. The typical workflow is:
+- **Backend**: FastAPI (Python 3.10+)
+- **Vector Database**: [Qdrant](https://qdrant.tech/) for high-performance similarity search
+- **Document Store**: Cloudflare R2 (S3-compatible) for persistent storage
+- **Metadata/Relational**: PostgreSQL 15
+- **Task Queue**: Celery with Redis for asynchronous background ingestion
+- **LLM Support**: OpenAI (GPT-4o) and Google Gemini (2.0 Flash)
 
-1. **Upload/ingest** one or more PDF files via the Streamlit web UI.
-2. **Chunk** each page using a structure-aware Markdown text splitter (to preserve tables and logical sections) and compute embeddings using
-	a SentenceTransformer model (`all-MiniLM-L6-v2` by default).
-3. **Persist** the vectors in a FAISS index along with simple metadata
-	(source filename, page number, chunk id, and the chunk text itself). The
-	index lives under `index/` and can be reloaded between sessions.
-4. **Query**: when you type a question, the system embeds the question and
-	performs an L2 search in the FAISS index, returning the top‑k closest
-	chunks.
-5. **Generate**: the retrieved chunks are concatenated and prefixed with a
-	strict system instruction; the resulting prompt is sent to Gemini (or
-	OpenAI) to produce the final answer. Only the prompt and reply leave the
-	local machine.
+## ✨ Features
 
-Because all data never leaves the user’s environment except for the snippets
-used in the prompt, this pattern provides better privacy and bandwidth
-efficiency compared to uploading entire documents to the cloud.
+- **Scalable Ingestion**: Upload documents via API and process them asynchronously.
+- **Advanced Chunking**: Structure-aware chunking to preserve context.
+- **Fast Retrieval**: Hybrid search capabilities via Qdrant.
+- **Production-Ready**: Dockerized stack with dedicated workers and monitoring.
+- **Auto-Documentation**: Integrated Swagger UI and ReDoc for all API endpoints.
 
-## Setup
+## 🛠 Setup & Installation
 
-```bash
-git clone <your-repo> rag_system
-cd rag_system
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+### Local Development
 
+1. **Clone the repository**:
+   ```bash
+   git clone <repo-url>
+   cd rag-pdf
+   ```
 
-## Configuration
-Additional config options are available in `config.RAGConfig`:
+2. **Setup virtual environment**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-```python
-# chunking
-chunk_size_tokens: int = 600
-chunk_overlap_tokens: int = 100
+3. **Environment Configuration**:
+   Create a `.env` file based on `.env.example`:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and configuration
+   ```
 
-# retrieval
-top_k: int = 5
+4. **Run with Docker (Recommended)**:
+   ```bash
+   docker-compose up --build
+   ```
 
-# embedding
-embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+### API Documentation
+
+Once the server is running, you can access the interactive API documentation at:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+> [!TIP]
+> Navigating to the root URL [http://localhost:8000/](http://localhost:8000/) will automatically redirect you to the Swagger documentation.
+
+### Postman Collection
+
+For manual API testing, a Postman collection is included in the root directory:
+- [rag_pdf_postman_collection.json](file:///home/carl/Desktop/wisipay/rag-pdf/rag_pdf_postman_collection.json)
+
+**How to use**:
+1. Open Postman.
+2. Click **Import**.
+3. Drag and drop the `rag_pdf_postman_collection.json` file.
+4. Set the `base_url` variable (default is `http://localhost:8000`).
+
+## 📡 API Endpoints
+
+### Ingestion
+- `POST /api/v1/ingest/upload`: Upload a document for processing.
+
+### Querying
+- `POST /api/v1/query/`: Ask questions based on your indexed documents.
+
+### Health
+- `GET /health`: Monitor system status.
+
+## 🏗 Project Structure
+
+```text
+├── app/
+│   ├── api/          # API routes (v1)
+│   ├── core/         # Config, logging, security
+│   ├── integrations/ # Third-party clients (Qdrant, R2, LLMs)
+│   ├── models/       # Database schemas
+│   ├── pipeline/     # RAG logic (chunking, embedding, orchestration)
+│   ├── services/     # Business logic
+│   └── workers/      # Celery task definitions
+├── docker/           # Docker configuration
+├── tests/            # Test suite
+└── docker-compose.yml
 ```
 
-1. Put your LLM API key in `keys.txt` or set the `GEMINI_API_KEY` (or
-	 `OPENAI_API_KEY` if you revert to OpenAI) environment variable.
-2. The `config.py` loader will pick up the key from the env var first,
-	 then fall back to `keys.txt`.
+## 🤝 Contributing
 
-## GitHub preparation
+Contributions are welcome! Please follow the standard fork-and-pull-request workflow.
 
-- A `.gitignore` file is included to exclude sensitive keys, virtual
-	environments, and editor settings (see below).
-- Before pushing to a public repository, ensure `keys.txt` does **not**
-	contain a real API key or remove it entirely.
+## 📄 License
 
-### Running on a public host
-
-1. Push the repository to GitHub as described earlier.
-2. Use Streamlit Community Cloud or any container/VM host (Heroku, Docker,
-	 etc.) to run `streamlit run ui.py` remotely. See the previous section for
-	 more details.
-
-### Packaging for local execution
-
-If you want to distribute a standalone executable, you can containerize the
-application or use PyInstaller. Both approaches simply bundle Python and the
-code; the app still launches a local web server and opens the browser.
-
-## Troubleshooting
-
-- **Empty search results**: make sure you have indexed documents. Use the
-	“Reload index” button or re-upload PDFs.
-- **Model responds "I don’t know"**: the strict prompt requires the answer to
-	appear *verbatim* in the retrieved chunks; adjust your question or provide
-	more documents.
-- **`FutureWarning` about `google.generativeai`**: the library is deprecated
-	(see the warning). You can switch to `google.genai` by updating
-	`generate.py` accordingly.
-
-## Contributing
-
-This is a small demo project. If you’d like to add features (e.g. alternate
-embedding models, PDF preprocessing, more sophisticated retrieval), feel free
-to fork and submit pull requests.
-
-## License
-
-Specify an appropriate open-source license (MIT, Apache 2.0, etc.) before
-pushing to GitHub.
+[Apache 2.0](LICENSE)

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.env
+.git/
+.github/
+index/
+data/
+sample_docs/
+*.bin
+*.json
+!rag_pdf_postman_collection.json

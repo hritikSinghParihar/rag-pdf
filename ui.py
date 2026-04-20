@@ -1,297 +1,160 @@
+import streamlit as st
+import httpx
 import os
-import logging
-from typing import List, Dict, Any
+import time
 
-# guard against import errors so the app shows a message instead of a white
-# page. Streamlit Cloud hides import failures in its build logs, so we want to
-# catch them early and display them in the UI.
-import_streamlit_error = None
-try:
-    import numpy as np
-    import streamlit as st
+# Configuration
+API_BASE_URL = "http://localhost:8011/api/v1"
 
-    from config import config
-    from ingest import ingest_files
-    from embed import chunk_pages, embed_texts, get_embedding_model
-    from vector_store import get_vector_store
-    from retrieve import retrieve_relevant_chunks
-    from utils import get_all_supported_files
-    from generate import generate_answer
-except Exception as e:  # pylint: disable=broad-except
-    import_streamlit_error = e
+st.set_page_config(page_title="RAG PDF - AI Assistant", layout="wide")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+st.title("📄 RAG PDF - AI Assistant")
+st.markdown("Retrieval-Augmented Generation for Financial Documents")
 
-st.set_page_config(page_title="Local RAG PDF QA", layout="wide")
+# Authentication state
+if "access_token" not in st.session_state:
+    st.session_state["access_token"] = None
+if "sync_job_id" not in st.session_state:
+    st.session_state["sync_job_id"] = None
 
-# if imports failed, surface the exception and abort
-if import_streamlit_error is not None:
-    try:
-        st.error("Failed to start app due to import error:")
-        st.exception(import_streamlit_error)
-    except Exception:
-        print("Import error while starting app:", import_streamlit_error)
-    raise SystemExit(import_streamlit_error)
-
-st.title("📚 Local-First RAG — PDF, TXT, HTML & DOCX")
-
+# Sidebar for actions
 with st.sidebar:
-    st.header("Settings")
-
-    # provider selection
-    st.subheader("AI Model Provider")
-    provider = st.radio(
-        "Select LLM provider:",
-        options=["gemini", "openai"],
-        format_func=lambda x: "Google Gemini" if x == "gemini" else "OpenAI",
-        horizontal=True,
-    )
-    config.provider = provider
-
-    # show API key status for both providers
-    st.markdown("---")
-    st.subheader("API Keys Status")
-    
-    gemini_status = "✅ Set" if config.gemini_api_key else "❌ Not set"
-    openai_status = "✅ Set" if config.openai_api_key else "❌ Not set"
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Gemini**: {gemini_status}")
-    with col2:
-        st.write(f"**OpenAI**: {openai_status}")
-
-    st.markdown("---")
-    st.subheader("Chunking Settings")
-    
-    chunk_size = st.number_input(
-        "Chunk size (tokens)", min_value=200, max_value=1200,
-        value=config.chunk_size_tokens, step=50,
-    )
-    chunk_overlap = st.number_input(
-        "Chunk overlap (tokens)", min_value=0, max_value=400,
-        value=config.chunk_overlap_tokens, step=25,
-    )
-    top_k = st.number_input(
-        "Top-k retrieval", min_value=1, max_value=20,
-        # Increased to 10 for better reasoning support
-        value=10, step=1,
-    )
-
-    st.markdown("---")
-    st.markdown("**Index Directory:**")
-    st.code(os.path.abspath(config.index_dir))
-
-uploaded_files = st.file_uploader(
-    "Upload documents (PDF, TXT, HTML, DOCX, Images)",
-    type=["pdf", "txt", "html", "htm", "docx", "png", "jpg", "jpeg"],
-    accept_multiple_files=True,
-)
-
-# PERSISTENCE LOGIC (Auto-load existing index on startup)
-def auto_reload_index():
-    if not st.session_state.get("indexed") and os.path.exists(config.index_dir):
-        try:
-            model = get_embedding_model()
-            dim = model.get_sentence_embedding_dimension()
-            store = get_vector_store(dim)
-            if store.index is not None and store.index.ntotal > 0:
-                st.session_state["indexed"] = True
-                st.session_state["num_docs"] = len({m.get("source") for m in store.metadata}) if store.metadata else 0
-                st.session_state["num_chunks"] = len(store.metadata)
-                return True
-        except Exception as exc:
-            logger.error("Failed to auto-load index: %s", exc)
-    return False
-
-if "indexed" not in st.session_state:
-    st.session_state["indexed"] = False
-if "num_docs" not in st.session_state:
-    st.session_state["num_docs"] = 0
-if "num_chunks" not in st.session_state:
-    st.session_state["num_chunks"] = 0
-
-# Attempt auto-reload once per session
-if not st.session_state["indexed"]:
-    auto_reload_index()
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    index_button = st.button("📥 Index Documents")
-with col2:
-    reload_button = st.button("🔁 Reload Existing Index")
-with col3:
-    clear_button = st.button("🧹 Clear Index (local files)")
-
-sync_button = st.sidebar.button("🔄 Sync Scraped Docs")
-
-status_placeholder = st.empty()
-if st.session_state["indexed"] and not any([index_button, reload_button, clear_button]):
-    status_placeholder.info(
-        f"✅ Auto-loaded existing index: {st.session_state['num_docs']} docs | {st.session_state['num_chunks']} chunks."
-    )
-
-if index_button:
-    if not uploaded_files:
-        st.error("Please upload at least one document.")
-    else:
-        with st.spinner("Indexing documents... This may take a while."):
-            os.makedirs(config.data_dir, exist_ok=True)
-            saved_paths = []
-            for uf in uploaded_files:
-                save_path = os.path.join(config.data_dir, uf.name)
-                with open(save_path, "wb") as f:
-                    f.write(uf.read())
-                saved_paths.append(save_path)
-
-            pages = ingest_files(saved_paths)
-            chunks = chunk_pages(
-                pages,
-                chunk_size_tokens=int(chunk_size),
-                chunk_overlap_tokens=int(chunk_overlap),
-            )
-
-            texts = [c["text"] for c in chunks]
-            metadatas = [c["metadata"] for c in chunks]
-            
-            # Add text back to metadata for later retrieval
-            for meta, text in zip(metadatas, texts):
-                meta["text"] = text
-
-            model = get_embedding_model()
-            dim = model.get_sentence_embedding_dimension()
-            store = get_vector_store(dim)
-            store.create_new()
-
-            embeddings = embed_texts(texts)
-            embeddings = np.array(embeddings)
-            store.add(embeddings, metadatas)
-            store.save()
-
-            st.session_state["indexed"] = True
-            st.session_state["num_docs"] = len(saved_paths)
-            st.session_state["num_chunks"] = len(chunks)
-
-            status_placeholder.success(
-                f"Indexed {len(saved_paths)} documents into {len(chunks)} chunks."
-            )
-
-if reload_button:
-    with st.spinner("Reloading index..."):
-        model = get_embedding_model()
-        dim = model.get_sentence_embedding_dimension()
-        store = get_vector_store(dim)
-        st.session_state["indexed"] = store.index is not None and store.index.ntotal > 0
-        st.session_state["num_docs"] = len({m.get("source") for m in store.metadata}) if store.metadata else 0
-        st.session_state["num_chunks"] = len(store.metadata)
-        status_placeholder.info(
-            f"Loaded index with {st.session_state['num_docs']} docs and {st.session_state['num_chunks']} chunks."
-        )
-
-        st.info("No index directory found.")
-
-if sync_button:
-    with st.spinner("Syncing documents from Scraper directory..."):
-        scrapper_files = get_all_supported_files(config.scrapper_dir)
-        if not scrapper_files:
-            st.warning(f"No documents found in {config.scrapper_dir}")
-        else:
-            # Load existing store to check for duplicates
-            model = get_embedding_model()
-            dim = model.get_sentence_embedding_dimension()
-            store = get_vector_store(dim)
-            
-            # Identify which files are already indexed
-            indexed_sources = {m.get("source") for m in store.metadata} if store.metadata else set()
-            new_files = [f for f in scrapper_files if f not in indexed_sources]
-            
-            if not new_files:
-                st.info("Already up to date. No new documents found.")
-            else:
-                pages = ingest_files(new_files)
-                chunks = chunk_pages(
-                    pages,
-                    chunk_size_tokens=int(chunk_size),
-                    chunk_overlap_tokens=int(chunk_overlap),
-                )
-
-                if chunks:
-                    texts = [c["text"] for c in chunks]
-                    metadatas = [c["metadata"] for c in chunks]
-                    for meta, text in zip(metadatas, texts):
-                        meta["text"] = text
-
-                    embeddings = embed_texts(texts)
-                    embeddings = np.array(embeddings)
-                    
-                    if store.index is None:
-                        store.create_new()
-                    
-                    store.add(embeddings, metadatas)
-                    store.save()
-
-                    st.session_state["indexed"] = True
-                    st.session_state["num_docs"] = len({m.get("source") for m in store.metadata})
-                    st.session_state["num_chunks"] = len(store.metadata)
-
-                    status_placeholder.success(
-                        f"Synced {len(new_files)} new documents. Total chunks: {st.session_state['num_chunks']}"
-                    )
-                else:
-                    st.warning("No text extracted from new documents.")
-
-st.markdown("---")
-
-st.subheader("Ask a question")
-
-question = st.text_input("Your question about the indexed documents")
-st.info("💡 **Tip:** For complex questions involving comparisons or multi-step reasoning, ensure 'Top-k retrieval' in the sidebar is set to 10 or higher.")
-ask_button = st.button("❓ Ask")
-
-if st.session_state.get("indexed"):
-    st.caption(
-        f"Indexed documents: {st.session_state['num_docs']} | "
-        f"Total chunks: {st.session_state['num_chunks']}"
-    )
-else:
-    st.caption("No index loaded yet.")
-
-if ask_button:
-    if not question.strip():
-        st.error("Please type a question.")
-    elif not st.session_state.get("indexed"):
-        st.error("Please index documents or reload an index first.")
-    else:
-        with st.spinner("Retrieving and generating answer..."):
-            chunks = retrieve_relevant_chunks(question, top_k=int(top_k))
-            # build prompt separately so we can display it in the UI
-            from generate import build_prompt
-            prompt = build_prompt(chunks, question)
+    st.header("Authentication")
+    if not st.session_state["access_token"]:
+        email = st.text_input("Email", value="admin@example.com")
+        password = st.text_input("Password", type="password", value="strongadminpassword")
+        if st.button("Login"):
             try:
-                answer = generate_answer(chunks, question, provider=provider)
-            except RuntimeError as e:
-                st.error(f"Error generating answer: {e}")
-                st.stop()
+                response = httpx.post(
+                    f"{API_BASE_URL}/login/access-token",
+                    data={"username": email, "password": password},
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    st.session_state["access_token"] = response.json()["access_token"]
+                    st.session_state["email"] = email
+                    st.success("Logged in!")
+                    st.rerun()
+                else:
+                    st.error("Login failed. Check credentials.")
+            except Exception as e:
+                st.error(f"Error during login: {e}")
+    else:
+        st.info(f"Logged in as {st.session_state.get('email', 'Admin')}")
+        if st.button("Logout"):
+            st.session_state["access_token"] = None
+            st.rerun()
 
-            st.markdown("### Answer")
-            st.write(answer)
+    if st.session_state["access_token"]:
+        headers = {"Authorization": f"Bearer {st.session_state['access_token']}"}
+        
+        st.divider()
+        st.header("Actions")
+        if st.button("🔄 Sync RBI Documents"):
+            try:
+                response = httpx.post(f"{API_BASE_URL}/ingest/rbi-sync", headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()["data"]
+                    st.session_state["sync_job_id"] = data["job_id"]
+                    st.success("Sync started in background!")
+                    st.rerun()
+                else:
+                    st.error(f"Sync failed to start: {response.text}")
+            except Exception as e:
+                st.error(f"Error starting sync: {e}")
 
-            # show debug info: the prompt that was sent to the LLM
-            st.markdown("### Prompt sent to model")
-            st.code(prompt, language="text")
+        if st.session_state["sync_job_id"]:
+            st.divider()
+            st.header("Sync Progress")
+            status_placeholder = st.empty()
+            
+            try:
+                response = httpx.get(
+                    f"{API_BASE_URL}/ingest/sync-status/{st.session_state['sync_job_id']}", 
+                    headers=headers,
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()["data"]
+                    status = data["status"]
+                    synced = int(data["synced_files"])
+                    total = int(data["total_files"])
+                    errors = int(data["error_files"])
+                    
+                    if status == "running":
+                        status_placeholder.info(f"Syncing: {synced}/{total} files (Errors: {errors})")
+                        if total > 0:
+                            st.progress(synced / total)
+                        time.sleep(2)
+                        st.rerun()
+                    elif status == "completed":
+                        status_placeholder.success(f"Sync completed! Total: {total}, Synced: {synced}, Errors: {errors}")
+                        if st.button("Clear Status"):
+                            st.session_state["sync_job_id"] = None
+                            st.rerun()
+                    else:
+                        status_placeholder.error(f"Sync job failed: {data.get('message')}")
+                        if st.button("Clear Status"):
+                            st.session_state["sync_job_id"] = None
+                            st.rerun()
+                else:
+                    st.error("Could not fetch sync status.")
+            except Exception as e:
+                st.error(f"Error fetching status: {e}")
 
-            if chunks:
-                st.markdown("### Retrieved Context (Preview)")
-                st.caption(f"Top-{len(chunks)} chunks used:")
-                for i, ch in enumerate(chunks, start=1):
-                    with st.expander(
-                        f"Chunk {i} — {ch.get('source')} (page {ch.get('page')})"
-                    ):
-                        st.write(ch.get("text", "")[:2000])
+        st.divider()
+        st.header("Upload Document")
+        uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
+        if st.button("📤 Upload") and uploaded_file:
+            with st.spinner("Uploading..."):
+                try:
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+                    response = httpx.post(f"{API_BASE_URL}/ingest/upload", headers=headers, files=files, timeout=300)
+                    if response.status_code == 200:
+                        st.success("Uploaded successfully!")
+                    else:
+                        st.error(f"Upload failed: {response.text}")
+                except Exception as e:
+                    st.error(f"Error during upload: {e}")
 
-                st.markdown("### Sources")
-                for ch in chunks:
-                    src = ch.get("source")
-                    page = ch.get("page")
-                    st.write(f"- {src}, page {page}")
+# Main Chat Interface
+if st.session_state["access_token"]:
+    st.subheader("💬 Ask a question")
+    question = st.text_input("Enter your question about the indexed documents:")
+
+    if st.button("🔍 Search & Generate"):
+        if not question:
+            st.warning("Please enter a question.")
+        else:
+            with st.spinner("Analyzing documents..."):
+                try:
+                    headers = {"Authorization": f"Bearer {st.session_state['access_token']}"}
+                    response = httpx.post(
+                        f"{API_BASE_URL}/query/", 
+                        headers=headers,
+                        json={"question": question}, 
+                        timeout=120
+                    )
+                    if response.status_code == 200:
+                        data = response.json()["data"]
+                        st.markdown("### Answer")
+                        st.write(data["answer"])
+                        
+                        with st.expander("Sources"):
+                            if data.get("sources"):
+                                for source in data["sources"]:
+                                    st.write(f"- Document ID: {source['doc_id']}, Page: {source['page']}")
+                            else:
+                                st.write("No specific sources found or mentioned in the answer.")
+                    else:
+                        st.error(f"Query failed: {response.text}")
+                except Exception as e:
+                    st.error(f"Error during query: {e}")
+else:
+    st.info("Please login from the sidebar to use the RAG features.")
+    st.markdown("""
+    ### Features:
+    - **Sync RBI Documents**: Fetch latest circulars from RBI Scrapper.
+    - **Custom Upload**: Upload your own PDF documents for indexing.
+    - **QA Assistant**: Ask questions and get answers based on indexed content.
+    """)
