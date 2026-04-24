@@ -1,5 +1,4 @@
 from typing import List
-from sentence_transformers import SentenceTransformer
 from app.core.config import settings
 
 class Embedder:
@@ -9,6 +8,7 @@ class Embedder:
     @property
     def model(self):
         if self._model is None:
+            from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
         return self._model
 

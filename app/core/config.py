@@ -25,13 +25,18 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "rag_db"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_SSLMODE: str = "disable"
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
     @property
     def database_url(self) -> str:
         if self.SQLALCHEMY_DATABASE_URI:
             return self.SQLALCHEMY_DATABASE_URI
-        return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
+        url = f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        if self.POSTGRES_SSLMODE:
+            url += f"?sslmode={self.POSTGRES_SSLMODE}"
+        return url
 
     # Qdrant
     QDRANT_URL: str = "http://localhost:6333"
@@ -47,6 +52,7 @@ class Settings(BaseSettings):
     # Redis
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    REDIS_PASSWORD: Optional[str] = None
     
     # LLM Providers
     GEMINI_API_KEY: Optional[str] = None

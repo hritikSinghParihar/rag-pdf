@@ -9,3 +9,7 @@ def process_document_task(doc_id: int, file_path: str):
         process_document_pipeline(db, doc_id, file_path)
     finally:
         db.close()
+        # Cleanup temporary file
+        import os
+        if os.path.exists(file_path):
+            os.remove(file_path)

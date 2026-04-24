@@ -15,15 +15,14 @@ def process_document_pipeline(db: Session, doc_id: int, file_path: str):
         return
     
     try:
-        # 1. Extraction (Simplified: read text if possible, placeholder for complex logic)
-        # In the original, we used pymupdf4llm.to_markdown
-        import pymupdf4llm
-        md_pages = pymupdf4llm.to_markdown(file_path, page_chunks=True)
+        # 1. Extraction using the new unified FileParser
+        from app.pipeline.parser import file_parser
+        parsed_pages = file_parser.parse(file_path)
         
         all_chunks_data = []
-        for i, page_data in enumerate(md_pages):
+        for i, page_data in enumerate(parsed_pages):
             page_text = page_data["text"]
-            metadata = {"source_id": doc.id, "page": i+1}
+            metadata = {"source_id": doc.id, "page": page_data["page"]}
             chunks = chunker.split_page(page_text, metadata)
             all_chunks_data.extend(chunks)
             

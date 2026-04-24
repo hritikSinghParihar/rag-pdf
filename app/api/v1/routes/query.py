@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from app.models.document import Document
 from app.models import get_db
 from app.integrations.vector_db.qdrant_client import vector_client
 from app.pipeline.embedder import embedder
@@ -45,10 +46,35 @@ async def query_documents(
     
     answer = openai_client.generate_chat_completion(messages)
     
+    # 5. Format sources with human-readable names and de-duplicate
+    formatted_sources = []
+    seen_sources = set()
+    
+    for hit in results:
+        payload = hit.payload
+        doc_id = payload.get("source_id")
+        page = payload.get("page")
+        
+        # Create a unique key for de-duplication (normalize to strings/ints)
+        source_key = (str(doc_id), int(page) if page is not None else 0)
+        
+        if source_key not in seen_sources:
+            seen_sources.add(source_key)
+            
+            # Resolve file name from DB
+            doc = db.query(Document).filter(Document.id == doc_id).first()
+            file_name = doc.file_name if doc else "Unknown Document"
+            
+            formatted_sources.append({
+                "file_name": file_name,
+                "page": page,
+                "doc_id": str(doc_id)
+            })
+
     return SuccessResponse(
         message="Answer generated",
         data={
             "answer": answer,
-            "sources": [{"doc_id": r.payload.get("source_id"), "page": r.payload.get("page")} for r in results]
+            "sources": formatted_sources
         }
     )

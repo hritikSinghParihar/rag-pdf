@@ -4,7 +4,7 @@ import os
 import time
 
 # Configuration
-API_BASE_URL = "http://localhost:8011/api/v1"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8002/api/v1")
 
 st.set_page_config(page_title="RAG PDF - AI Assistant", layout="wide")
 
@@ -104,7 +104,10 @@ with st.sidebar:
 
         st.divider()
         st.header("Upload Document")
-        uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
+        uploaded_file = st.file_uploader(
+            "Choose a file", 
+            type=["pdf", "docx", "html", "htm", "txt", "png", "jpg", "jpeg", "tiff", "bmp"]
+        )
         if st.button("📤 Upload") and uploaded_file:
             with st.spinner("Uploading..."):
                 try:
@@ -143,7 +146,7 @@ if st.session_state["access_token"]:
                         with st.expander("Sources"):
                             if data.get("sources"):
                                 for source in data["sources"]:
-                                    st.write(f"- Document ID: {source['doc_id']}, Page: {source['page']}")
+                                    st.write(f"- {source['file_name']} (Page {source['page']})")
                             else:
                                 st.write("No specific sources found or mentioned in the answer.")
                     else:

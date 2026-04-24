@@ -12,7 +12,15 @@ from app.models.document import Document, Chunk
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create tables on startup
-    Base.metadata.create_all(bind=engine)
+    import logging
+    logger = logging.getLogger("rag_app")
+    logger.info("Starting database table creation...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database table creation completed.")
+    except Exception as e:
+        logger.error(f"Error during database table creation: {e}")
+        raise e
     yield
 
 app = FastAPI(

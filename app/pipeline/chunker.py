@@ -1,11 +1,10 @@
 from typing import List, Dict, Any
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from transformers import AutoTokenizer
 from app.core.config import settings
 
 class Chunker:
     def __init__(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(settings.EMBEDDING_MODEL_NAME)
+        self._tokenizer = None
         self.headers_to_split_on = [
             ("#", "Header 1"),
             ("##", "Header 2"),
@@ -16,6 +15,13 @@ class Chunker:
             headers_to_split_on=self.headers_to_split_on, 
             strip_headers=False
         )
+
+    @property
+    def tokenizer(self):
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+            self._tokenizer = AutoTokenizer.from_pretrained(settings.EMBEDDING_MODEL_NAME)
+        return self._tokenizer
 
     def _token_len(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))

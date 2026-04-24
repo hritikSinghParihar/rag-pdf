@@ -51,11 +51,11 @@ A scalable, containerized RAG system for processing and querying over documents 
 ### API Documentation
 
 Once the server is running, you can access the interactive API documentation at:
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Swagger UI**: [http://localhost:8002/docs](http://localhost:8002/docs)
+- **ReDoc**: [http://localhost:8002/redoc](http://localhost:8002/redoc)
 
 > [!TIP]
-> Navigating to the root URL [http://localhost:8000/](http://localhost:8000/) will automatically redirect you to the Swagger documentation.
+> Navigating to the root URL [http://localhost:8002/](http://localhost:8002/) will automatically redirect you to the Swagger documentation.
 
 ### Postman Collection
 
@@ -66,7 +66,7 @@ For manual API testing, a Postman collection is included in the root directory:
 1. Open Postman.
 2. Click **Import**.
 3. Drag and drop the `rag_pdf_postman_collection.json` file.
-4. Set the `base_url` variable (default is `http://localhost:8000`).
+4. Set the `base_url` variable (default is `http://localhost:8002`).
 
 ## 📡 API Endpoints
 

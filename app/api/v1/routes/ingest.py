@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models import get_db
 from app.services.ingestion_service import ingestion_service
 from app.services.rbi_service import rbi_service
+from app.workers.ingest_worker import process_document_task
 from app.models.document import SyncJob
 from app.core.dependencies import get_current_user
 from app.schemas.response import SuccessResponse
@@ -16,24 +17,34 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    # Save file temporarily
-    temp_path = f"/tmp/{file.filename}"
-    with open(temp_path, "wb") as f:
+    # Validate file extension
+    ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.html', '.htm', '.txt', '.png', '.jpg', '.jpeg', '.tiff', '.bmp'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # Save file to uploads directory
+    os.makedirs("uploads", exist_ok=True)
+    file_path = os.path.join("uploads", file.filename)
+    with open(file_path, "wb") as f:
         f.write(await file.read())
     
     try:
-        doc = ingestion_service.process_upload(db, temp_path, current_user.id)
-        # In a real app, this would be a background task
-        from app.pipeline.orchestrator import process_document_pipeline
-        process_document_pipeline(db, doc.id, temp_path)
+        doc = ingestion_service.process_upload(db, file_path, current_user.id)
+        # Trigger background processing via Celery
+        process_document_task.delay(doc.id, file_path)
         
         return SuccessResponse(
-            message="Document uploaded and processed successfully",
-            data={"document_id": str(doc.id), "filename": doc.file_name}
+            message="Document uploaded and processing started in background",
+            data={"document_id": str(doc.id), "filename": doc.file_name, "status": "processing"}
         )
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise e
 
 @router.post("/rbi-sync", response_model=SuccessResponse)
 async def sync_rbi_documents(
