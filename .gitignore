@@ -33,3 +33,5 @@ data/
 index/
 *.log
 *.db
+hf_cache/
+hf_cache*
