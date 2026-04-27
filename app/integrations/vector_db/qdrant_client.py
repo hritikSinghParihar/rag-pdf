@@ -8,6 +8,7 @@ class QdrantVectorClient:
         self.client = QClient(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,
+            timeout=60,  # Increase timeout for slow networks
         )
         self.collection = settings.QDRANT_COLLECTION
 

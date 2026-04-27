@@ -14,6 +14,8 @@ async def lifespan(app: FastAPI):
     # Create tables on startup
     import logging
     logger = logging.getLogger("rag_app")
+    
+    # 1. Initialize DB tables
     logger.info("Starting database table creation...")
     try:
         Base.metadata.create_all(bind=engine)
@@ -21,6 +23,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error during database table creation: {e}")
         raise e
+        
+    # 2. Pre-load embedding model
+    from app.pipeline.embedder import embedder
+    try:
+        embedder.initialize()
+    except Exception as e:
+        logger.warning(f"Could not pre-load embedding model: {e}. It will be loaded lazily.")
+        
     yield
 
 app = FastAPI(

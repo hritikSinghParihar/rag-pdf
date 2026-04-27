@@ -8,7 +8,10 @@ class OpenAIClient:
         self.api_key = settings.OPENAI_API_KEY
         self.client = None
         if self.api_key:
-            self.client = OpenAI(api_key=self.api_key)
+            self.client = OpenAI(
+                api_key=self.api_key,
+                timeout=60.0  # Increase timeout for slow networks
+            )
 
     def generate_chat_completion(self, messages: list, model: str = None) -> Optional[str]:
         if not self.client:
