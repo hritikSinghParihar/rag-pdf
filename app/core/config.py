@@ -4,7 +4,10 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+        env_file=".env", 
+        env_file_encoding="utf-8", 
+        case_sensitive=False,
+        extra="ignore"
     )
 
     # Project Info
@@ -66,8 +69,18 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     TOP_K: int = 10
 
-    # RBI Scrapper
-    RBI_SCRAPPER_BASE_URL: str = "http://localhost:8001"
-    RBI_SCRAPPER_API_KEY: Optional[str] = None
+    # RBI Scrapper (Internal)
+    RBI_SYNC_START_YEAR: int = 2024
+    RBI_INDEX_URL: str = "https://www.rbi.org.in/Scripts/BS_CircularIndexDisplay.aspx"
+    RBI_NOTIFICATIONS_URL: str = "https://www.rbi.org.in/Scripts/NotificationUser.aspx"
+    RBI_MASTER_DIRECTIONS_URL: str = "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx"
+    RBI_MASTER_CIRCULARS_URL: str = "https://www.rbi.org.in/Scripts/BS_ViewMasterCirculars.aspx"
+    RBI_HOME_URL: str = "https://www.rbi.org.in/"
+    # NPCI Scrapper
+    NPCI_HOME_URL: str = "https://www.npci.org.in/"
+    NPCI_PRESS_RELEASE_API: str = "https://www.npci.org.in/api/press-releases"
+    NPCI_PRESS_RELEASE_DETAILS_API: str = "https://www.npci.org.in/api/press-release-details"
+    NPCI_MEDIA_COVERAGE_API: str = "https://www.npci.org.in/api/media-coverages"
+    NPCI_CHROME_IMPERSONATION: str = "chrome120"
 
 settings = Settings()

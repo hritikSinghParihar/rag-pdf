@@ -35,7 +35,7 @@ class FileParser:
             return self.parse_docx(file_path)
         elif ext == '.txt':
             return self.parse_txt(file_path)
-        elif ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
+        elif ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.webp']:
             return self.parse_image(file_path)
         else:
             raise ValueError(f"Unsupported file extension: {ext}")

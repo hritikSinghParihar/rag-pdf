@@ -63,6 +63,19 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error starting sync: {e}")
 
+        if st.button("🔄 Sync NPCI Documents"):
+            try:
+                response = httpx.post(f"{API_BASE_URL}/ingest/npci-sync", headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()["data"]
+                    st.session_state["sync_job_id"] = data["job_id"]
+                    st.success("NPCI Sync started in background!")
+                    st.rerun()
+                else:
+                    st.error(f"Sync failed to start: {response.text}")
+            except Exception as e:
+                st.error(f"Error starting NPCI sync: {e}")
+
         if st.session_state["sync_job_id"]:
             st.divider()
             st.header("Sync Progress")
@@ -106,7 +119,7 @@ with st.sidebar:
         st.header("Upload Document")
         uploaded_file = st.file_uploader(
             "Choose a file", 
-            type=["pdf", "docx", "html", "htm", "txt", "png", "jpg", "jpeg", "tiff", "bmp"]
+            type=["pdf", "docx", "html", "htm", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "webp"]
         )
         if st.button("📤 Upload") and uploaded_file:
             with st.spinner("Uploading..."):

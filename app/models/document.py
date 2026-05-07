@@ -11,6 +11,7 @@ class Document(Base):
     file_name = Column(String, index=True)
     file_extension = Column(String)
     status = Column(String, default="pending")  # pending, processing, completed, error
+    source_url = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Chunk(Base):

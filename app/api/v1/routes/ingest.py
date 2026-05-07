@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models import get_db
 from app.services.ingestion_service import ingestion_service
 from app.services.rbi_service import rbi_service
+from app.services.npci_service import npci_service
 from app.workers.ingest_worker import process_document_task
 from app.models.document import SyncJob
 from app.core.dependencies import get_current_user
@@ -18,7 +19,7 @@ async def upload_document(
     current_user: dict = Depends(get_current_user)
 ):
     # Validate file extension
-    ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.html', '.htm', '.txt', '.png', '.jpg', '.jpeg', '.tiff', '.bmp'}
+    ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.html', '.htm', '.txt', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.webp'}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -61,6 +62,24 @@ async def sync_rbi_documents(
     background_tasks.add_task(rbi_service.sync_rbi_documents, db, current_user.id, str(job.id))
     return SuccessResponse(
         message="RBI documents sync started in background",
+        data={"job_id": str(job.id), "status": "started"}
+    )
+
+@router.post("/npci-sync", response_model=SuccessResponse)
+async def sync_npci_documents(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # Create a sync job record
+    job = SyncJob(status="running")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    
+    background_tasks.add_task(npci_service.sync_npci_documents, db, current_user.id, str(job.id))
+    return SuccessResponse(
+        message="NPCI documents sync started in background",
         data={"job_id": str(job.id), "status": "started"}
     )
 

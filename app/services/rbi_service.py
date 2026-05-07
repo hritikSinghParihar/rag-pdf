@@ -1,99 +1,137 @@
 import os
-import tempfile
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
-from app.integrations.rbi_client import rbi_client
+from app.core.config import settings
 from app.models.document import Document, SyncJob
 from app.services.ingestion_service import ingestion_service
 from app.pipeline.orchestrator import process_document_pipeline
+from app.integrations.rbi.scraper import RBIScraper
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("rag_app")
 
 class RBIService:
     def sync_rbi_documents(self, db: Session, user_id: int, job_id: str = None):
-        """Sync documents from RBI Scrapper to RAG system."""
-        logger.info(f"Starting RBI document sync (Job: {job_id})...")
+        """Sync documents from RBI website to RAG system."""
+        logger.info(f"Starting internal RBI document sync (Job: {job_id})...")
         
-        # 1. Fetch list of files
-        files = rbi_client.list_files()
-        if not files:
-            logger.info("No files found or error fetching list.")
+        synced_total = 0
+        skipped_total = 0
+        error_total = 0
+        
+        doc_categories = ["circular", "notification", "master_direction", "master_circular"]
+        
+        try:
+            with RBIScraper() as scraper:
+                for category in doc_categories:
+                    try:
+                        logger.info(f"Syncing category: {category}")
+                        
+                        # 1. Fetch links based on category
+                        if category in ["circular", "notification"]:
+                            # Periodic documents: loop through years/months
+                            start_year = settings.RBI_SYNC_START_YEAR
+                            current_year = datetime.now().year
+                            
+                            for year in range(start_year, current_year + 1):
+                                for month in range(1, 13):
+                                    if year == current_year and month > datetime.now().month:
+                                        break
+                                        
+                                    try:
+                                        links = scraper.get_links(category, year=year, month=month)
+                                        self._process_links(db, scraper, links, user_id, job_id)
+                                    except Exception as e:
+                                        logger.error(f"Error syncing {category} for {year}-{month}: {e}")
+                                        continue
+                        else:
+                            # Consolidated documents: fetch all at once
+                            try:
+                                links = scraper.get_links(category)
+                                self._process_links(db, scraper, links, user_id, job_id)
+                            except Exception as e:
+                                logger.error(f"Error syncing {category}: {e}")
+                                continue
+                                
+                    except Exception as e:
+                        logger.error(f"Unexpected error in category {category}: {e}")
+                        continue
+                        
+            # Update job status at the end
             if job_id:
-                job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
+                job = db.query(SyncJob).get(job_id)
                 if job:
                     job.status = "completed"
-                    job.message = "No files found or error fetching list."
+                    job.message = f"Sync completed across all categories."
                     db.commit()
-            return {"synced": 0, "skipped": 0, "errors": 0}
-            
-        total_files = len(files)
-        if job_id:
-            job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
-            if job:
-                job.total_files = str(total_files)
-                db.commit()
 
-        # 2. Get existing document names
-        existing_docs = db.query(Document.file_name).all()
-        existing_names = {doc.file_name for doc in existing_docs}
+        except Exception as e:
+            logger.error(f"Critical error during RBI sync: {e}")
+            if job_id:
+                job = db.query(SyncJob).get(job_id)
+                if job:
+                    job.status = "failed"
+                    job.message = f"Error: {str(e)}"
+                    db.commit()
+
+    def _process_links(self, db: Session, scraper: RBIScraper, links: list, user_id: int, job_id: str):
+        """Processes a list of links: download, save, index."""
+        if not links:
+            return
+
+        # Get existing document URLs to avoid duplicates
+        existing_urls = {doc.source_url for doc in db.query(Document.source_url).all() if doc.source_url}
         
-        synced_count = 0
-        skipped_count = 0
-        error_count = 0
-        
-        for i, file_path in enumerate(files):
-            filename = os.path.basename(file_path)
+        for link_info in links:
+            url = link_info["url"]
+            name = link_info["name"]
             
-            # Skip if already exists
-            if filename in existing_names:
-                skipped_count += 1
+            if url in existing_urls:
+                logger.debug(f"Skipping (already exists): {name}")
                 continue
                 
-            # 3. Download file
-            file_content = rbi_client.download_file(file_path)
-            if not file_content:
-                error_count += 1
+            # Download
+            logger.info(f"Downloading: {name}")
+            content = scraper.download_pdf(url)
+            if not content:
                 continue
                 
-            # 4. Save to temp file and process
-            tmp_path = f"/tmp/rbi_sync_{filename}"
+            # Save to temporary file
+            safe_name = self._sanitize_filename(name)
+            filename = f"rbi_{int(time.time())}_{safe_name}.pdf"
+            tmp_path = os.path.join("uploads", filename)
+            os.makedirs("uploads", exist_ok=True)
+            
             with open(tmp_path, "wb") as f:
-                f.write(file_content)
+                f.write(content)
                 
             try:
-                # Process document
+                # Ingest and Process
                 doc = ingestion_service.process_upload(db, tmp_path, user_id)
+                # Store the source URL for de-duplication
+                doc.source_url = url
+                db.commit()
+                
                 process_document_pipeline(db, doc.id, tmp_path)
-                synced_count += 1
-                logger.info(f"Successfully synced: {filename}")
+                logger.info(f"Successfully processed: {name}")
             except Exception as e:
-                logger.error(f"Error processing {filename}: {e}")
-                error_count += 1
+                logger.error(f"Error processing {name}: {e}")
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
-                
-                # Update progress periodically or every file
-                if job_id and (i % 5 == 0 or i == total_files - 1):
-                    job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
-                    if job:
-                        job.synced_files = str(synced_count)
-                        job.error_files = str(error_count)
-                        db.commit()
                     
-        if job_id:
-            job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
-            if job:
-                job.status = "completed"
-                job.synced_files = str(synced_count)
-                job.error_files = str(error_count)
-                job.message = f"Sync completed. {synced_count} synced, {skipped_count} skipped, {error_count} errors."
-                db.commit()
+            # Update job progress
+            if job_id:
+                job = db.query(SyncJob).get(job_id)
+                if job:
+                    job.synced_files = str(int(job.synced_files or 0) + 1)
+                    db.commit()
 
-        return {
-            "synced": synced_count,
-            "skipped": skipped_count,
-            "errors": error_count
-        }
+    def _sanitize_filename(self, name: str) -> str:
+        """Removes illegal characters from filename."""
+        import re
+        clean_name = re.sub(r'[\\/*?:"<>|]', '_', name)
+        return clean_name.replace(" ", "_").strip()
 
 rbi_service = RBIService()
+import time 
